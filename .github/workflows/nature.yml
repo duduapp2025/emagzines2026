@@ -5,39 +5,95 @@ on:
   workflow_dispatch:
     inputs:
       issue_date:
-        description: 'Issue Date (YYYY-MM-DD)'
+        description: 'Issue Date (YYYY-MM-DD) - 留空则抓取最新一期'
         required: false
+        default: ''
   schedule:
-    - cron: '0 20 * * 3'  # 每周三UTC 20:00 (北京时间周四凌晨4点) 运行
+    # 每周三 UTC 20:00 (北京时间周四凌晨4点) 运行
+    - cron: '0 20 * * 3'
 
 jobs:
   worker:
     runs-on: ubuntu-latest
     steps:
+      # 1. 检出代码
       - name: Checkout code
         uses: actions/checkout@v3
 
+      # 2. 设置 Python 环境
       - name: Setup Python
         uses: actions/setup-python@v5
         with:
           python-version: '3.10'
 
-      # ===== 新增：安装系统依赖 =====
-      - name: Install dependencies
+      # 3. 安装所有系统依赖 (解决 libEGL.so.1 缺失问题)
+      - name: Install system dependencies
         run: |
           sudo apt-get update
-          sudo apt-get install -y libegl1 libopengl0 libgl1-mesa-glx libglib2.0-0
+          sudo apt-get install -y \
+            libegl1 \
+            libopengl0 \
+            libgl1-mesa-glx \
+            libglib2.0-0 \
+            libxcb-xinerama0 \
+            libxcb-icccm4 \
+            libxcb-image0 \
+            libxcb-keysyms1 \
+            libxcb-randr0 \
+            libxcb-render-util0 \
+            libxcb-shape0 \
+            libxcb-xfixes0 \
+            libxcb-xkb1 \
+            libxkbcommon-x11-0 \
+            libxcb-cursor0 \
+            libxcb-util1 \
+            libxcb-xv0 \
+            libx11-xcb1 \
+            libxcb-glx0 \
+            libxcb-dri2-0 \
+            libxcb-dri3-0 \
+            libxcb-present0 \
+            libxcb-sync1 \
+            libxshmfence1 \
+            libglvnd0 \
+            libglapi-mesa \
+            libgl1-mesa-dri \
+            libglx-mesa0 \
+            libxrender1 \
+            libxext6 \
+            libx11-6 \
+            libxcb1 \
+            libxau6 \
+            libxdmcp6 \
+            libxfixes3 \
+            libxdamage1 \
+            libxxf86vm1
 
+      # 4. 安装 Calibre
       - name: Install Calibre
         run: |
-          sudo -v && wget -nv -O- https://download.calibre-ebook.com/linux-installer.sh | sudo sh /dev/stdin
+          sudo -v
+          wget -nv -O- https://download.calibre-ebook.com/linux-installer.sh | sudo sh /dev/stdin
+          # 设置离屏渲染环境变量，避免图形依赖问题
+          export QT_QPA_PLATFORM=offscreen
           calibre --version
 
+      # 5. 抓取 Nature 杂志
       - name: Fetch Nature
         run: |
           mkdir -p output
-          ebook-convert nature.recipe output/nature.epub --output-profile=kindle
+          # 如果用户输入了日期，则使用该日期；否则抓取最新一期
+          if [ -n "${{ github.event.inputs.issue_date }}" ]; then
+            echo "抓取指定日期: ${{ github.event.inputs.issue_date }}"
+            ebook-convert nature.recipe output/nature.epub \
+              --output-profile=kindle \
+              --recipe-specific-option=date:${{ github.event.inputs.issue_date }}
+          else
+            echo "抓取最新一期"
+            ebook-convert nature.recipe output/nature.epub --output-profile=kindle
+          fi
 
+      # 6. 上传生成的电子书
       - name: Upload Artifact
         uses: actions/upload-artifact@v4
         with:
