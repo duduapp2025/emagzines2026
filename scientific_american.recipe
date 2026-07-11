@@ -1,0 +1,146 @@
+#!/usr/bin/env python
+__license__ = 'GPL v3'
+
+import json
+from datetime import datetime
+from urllib.parse import urljoin
+
+from calibre.web.feeds.news import BasicNewsRecipe, prefixed_classes
+
+
+class ScientificAmerican(BasicNewsRecipe):
+    title = 'Scientific American'
+    description = 'Popular Science. Monthly magazine. Should be downloaded around the middle of each month.'
+    category = 'science'
+    __author__ = 'Kovid Goyal'
+    no_stylesheets = True
+    language = 'en'
+    publisher = 'Nature Publishing Group'
+    remove_empty_feeds = True
+    remove_javascript = True
+    timefmt = ' [%B %Y]'
+    remove_attributes = ['height', 'width']
+    masthead_url = (
+        'https://static.scientificamerican.com/sciam/assets/Image/newsletter/salogo.png'
+    )
+    extra_css = '''
+        [class^="default_dek-"], [class^="short_dek-"] { font-style:italic; color:#202020; }
+        [class^="article_authors-"] {font-size:small; color:#202020; }
+        [class^="lead_image_"], .calibre-nuked-tag-figcaption { font-size:small; text-align:center; }
+        [class^="bio-"] { font-size:small; color:#404040; }
+        em, blockquote { color:#202020; }
+        img {display:block; margin:0 auto; }
+    '''
+
+    needs_subscription = 'optional'
+
+    keep_only_tags = [
+        prefixed_classes(
+            'default_hed- default_dek- short_hed- short_dek- article_authors- lead_image_ article__body- bio-'
+        ),
+    ]
+    remove_tags = [
+        dict(name=['button', 'svg', 'iframe', 'source'])
+    ]
+
+    def preprocess_html(self, soup):
+        for a in soup.findAll('a', href=lambda h: h and 'getsciam' in h):
+            p = a.find_parent('p')
+            if not p:
+                continue
+            prev_h2 = p.find_previous_sibling('h2')
+            if prev_h2 and 'supporting science journalism' in prev_h2.get_text().lower():
+                for tag in [p.find_previous_sibling('hr'), prev_h2, p.find_next_sibling('hr'), p]:
+                    if tag:
+                        tag.decompose()
+        for h2 in soup.findAll(['h2', 'h3']):
+            h2.name = 'h4'
+        for fig in soup.findAll('figcaption'):
+            for p in fig.findAll('p'):
+                p.name = 'div'
+        res = '?w=600'
+        w = self.recipe_specific_options.get('res')
+        if w and isinstance(w, str):
+            res = '?w=' + w
+        for img in soup.findAll('img', src=True):
+            img['src'] = img['src'].split('?')[0] + res
+        return soup
+
+    def get_browser(self, *args):
+        br = BasicNewsRecipe.get_browser(self)
+        if self.username and self.password:
+            br.open('https://www.scientificamerican.com/account/login/')
+            br.select_form(predicate=lambda f: f.attrs.get('id') == 'login')
+            br['emailAddress'] = self.username
+            br['password'] = self.password
+            br.submit()
+        return br
+
+    recipe_specific_options = {
+        'issue_url': {
+            'short': 'The issue URL ',
+            'long': (
+                'For example, https://www.scientificamerican.com/issue/sa/2024/07-01/'
+                '\nYou can also download special-editions, physics, health, mind magazines by pasting the URL here.'
+            )
+        },
+        'res': {
+            'short': 'For hi-res images, select a resolution from the\nfollowing options: 800, 1000, 1200 or 1500',
+            'long': 'This is useful for non e-ink devices, and for a lower file size\nthan the default, use 400 or 300.',
+            'default': '600'
+        }
+    }
+
+    def parse_index(self):
+        # Get the cover, date and issue URL
+        d = self.recipe_specific_options.get('issue_url')
+        if d and isinstance(d, str):
+            issue = d
+        else:
+            fp_soup = self.index_to_soup('https://www.scientificamerican.com')
+            curr_issue_link = fp_soup.find(**prefixed_classes('latest_issue_links-'))
+            if not curr_issue_link:
+                self.abort_recipe_processing('Unable to find issue link')
+            issue = 'https://www.scientificamerican.com' + curr_issue_link.a['href']
+
+        soup = self.index_to_soup(issue)
+        script = soup.find('script', id='__DATA__')
+        if not script:
+            self.abort_recipe_processing('Unable to find script')
+
+        JSON = script.contents[0].split('JSON.parse(`')[1].replace('\\\\', '\\')
+        data = json.JSONDecoder().raw_decode(JSON)[0]
+        issue_info = (
+            data
+            .get('initialData', {})
+            .get('issueData', {})
+        )
+        if not issue_info:
+            self.abort_recipe_processing('Unable to find issue info')
+
+        self.cover_url = issue_info['image_url'] + '?w=800'
+
+        edition_date = datetime.strptime(issue_info['issue_date'], '%Y-%m-%d')
+        self.timefmt = f' [{edition_date:%B %Y}]'
+
+        feeds = {}
+        for section in issue_info.get('article_previews', {}):
+            for article in issue_info.get('article_previews', {}).get(section, []):
+                self.log('\t', article['title'])
+                feed_name = article['column']
+                if feed_name not in feeds:
+                    feeds[feed_name] = []
+                feeds[feed_name].append(
+                    {
+                        'title': article['title'],
+                        'url': urljoin(
+                            'https://www.scientificamerican.com/article/',
+                            article['slug'],
+                        ),
+                        'description': article['summary'],
+                        'page_number': int(article['page_number'])
+                    }
+                )
+        # articles are already sorted by page number within a feed, but feeds are not in order
+        sorted_feeds = dict(sorted(feeds.items(), key=lambda x: x[1][0]['page_number']))
+        return sorted_feeds.items()
