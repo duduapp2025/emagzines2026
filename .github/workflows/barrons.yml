@@ -1,0 +1,83 @@
+name: Barrons Magazine
+run-name: "Barrons: ${{ github.ref_name }}"
+
+on:
+  workflow_dispatch:
+    inputs:
+      issue_date:
+        description: 'Issue Date (MMM DD, YYYY) - 例如 Dec 30, 2024，留空则抓取最新一期'
+        required: false
+        default: ''
+  schedule:
+    - cron: '0 20 * * 5'  # 每周五 UTC 20:00 (北京时间周六凌晨4点)
+
+jobs:
+  worker:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.10'
+
+      - name: Install dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            libegl1 \
+            libopengl0 \
+            libgl1 \
+            libglib2.0-0 \
+            libxcb-xinerama0 \
+            libxcb-icccm4 \
+            libxcb-image0 \
+            libxcb-keysyms1 \
+            libxcb-randr0 \
+            libxcb-render-util0 \
+            libxcb-shape0 \
+            libxcb-xfixes0 \
+            libxkbcommon-x11-0 \
+            libxcb-cursor0 \
+            libxcb-util1 \
+            libxrender1 \
+            libxext6 \
+            libx11-6 \
+            libxcb1 \
+            libxau6 \
+            libxdmcp6
+
+      - name: Install Calibre
+        run: |
+          sudo rm -f /usr/local/bin/calibre /usr/local/bin/ebook-convert /usr/local/bin/ebook-meta
+          export SKIP_DEPS_CHECK=1
+          export QT_QPA_PLATFORM=offscreen
+          sudo -v
+          wget -nv -O- https://download.calibre-ebook.com/linux-installer.sh | sudo SKIP_DEPS_CHECK=1 sh /dev/stdin
+          /opt/calibre/calibre --version || /usr/bin/calibre --version
+
+      - name: Fetch Barrons
+        run: |
+          mkdir -p output
+          export QT_QPA_PLATFORM=offscreen
+          CALIBRE_CMD="/opt/calibre/ebook-convert"
+          if [ ! -f "$CALIBRE_CMD" ]; then
+            CALIBRE_CMD="ebook-convert"
+          fi
+          CMD="$CALIBRE_CMD barrons.recipe output/barrons.epub --output-profile=kindle"
+          if [ -n "${{ github.event.inputs.issue_date }}" ]; then
+            echo "抓取指定日期: ${{ github.event.inputs.issue_date }}"
+            CMD="$CMD --recipe-specific-option=date:${{ github.event.inputs.issue_date }}"
+          else
+            echo "抓取最新一期"
+          fi
+          echo "执行命令: $CMD"
+          eval $CMD
+
+      - name: Upload Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: barrons-$(date +%Y%m%d)
+          path: output/
