@@ -1,0 +1,39 @@
+name: Nature Magazine
+run-name: "Nature: ${{ github.ref_name }}"
+
+on:
+  workflow_dispatch:
+    inputs:
+      issue_date:
+        description: 'Issue Date (YYYY-MM-DD)'
+        required: false
+  schedule:
+    - cron: '0 20 * * 3'  # 每周三UTC 20:00 (北京时间周四凌晨4点) 运行
+
+jobs:
+  worker:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.10'
+
+      - name: Install Calibre
+        run: |
+          sudo -v && wget -nv -O- https://download.calibre-ebook.com/linux-installer.sh | sudo sh /dev/stdin
+          calibre --version
+
+      - name: Fetch Nature
+        run: |
+          mkdir -p output
+          ebook-convert nature.recipe output/nature.epub --output-profile=kindle
+
+      - name: Upload Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: nature-$(date +%Y%m%d)
+          path: output/
