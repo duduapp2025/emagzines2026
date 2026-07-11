@@ -23,8 +23,8 @@ jobs:
         with:
           python-version: '3.10'
 
-      # ===== 精简依赖 =====
-      - name: Install minimal dependencies
+      # ===== 安装所有已知必需的依赖库 =====
+      - name: Install dependencies
         run: |
           sudo apt-get update
           sudo apt-get install -y \
@@ -33,10 +33,24 @@ jobs:
             libgl1 \
             libglib2.0-0 \
             libxcb-xinerama0 \
+            libxcb-icccm4 \
+            libxcb-image0 \
+            libxcb-keysyms1 \
+            libxcb-randr0 \
+            libxcb-render-util0 \
+            libxcb-shape0 \
+            libxcb-xfixes0 \
+            libxkbcommon-x11-0 \
+            libxcb-cursor0 \
+            libxcb-util1 \
             libxrender1 \
-            libxext6
+            libxext6 \
+            libx11-6 \
+            libxcb1 \
+            libxau6 \
+            libxdmcp6
 
-      # ===== 使用官方安装脚本，跳过依赖检测 =====
+      # ===== 安装 Calibre（跳过库检测）=====
       - name: Install Calibre
         run: |
           # 清理可能存在的旧链接
@@ -47,7 +61,7 @@ jobs:
           sudo -v
           wget -nv -O- https://download.calibre-ebook.com/linux-installer.sh | sudo SKIP_DEPS_CHECK=1 sh /dev/stdin
           # 验证安装
-          /usr/bin/calibre --version || /opt/calibre/calibre --version
+          /opt/calibre/calibre --version || /usr/bin/calibre --version
 
       - name: Fetch Nature
         run: |
