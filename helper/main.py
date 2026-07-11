@@ -156,7 +156,7 @@ def main():
     print(f"--- Fetching {config['name']} ---")
     raw_epub = "temp_output.epub"
     
-    convert_args = ["ebook-convert", f"{recipe}.recipe", raw_epub]
+    convert_args = ["ebook-convert", "helper/economist.recipe", raw_epub]
     
     # 如果指定了日期，则尝试通过 --recipe-specific-option 传入
     if issue_date:
