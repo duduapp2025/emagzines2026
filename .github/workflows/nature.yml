@@ -23,8 +23,8 @@ jobs:
         with:
           python-version: '3.10'
 
-      # ===== 修正依赖包名称 =====
-      - name: Install dependencies and setup environment
+      # ===== 修正：移除所有有问题的包，只保留必要的 =====
+      - name: Install dependencies
         run: |
           sudo apt-get update
           sudo apt-get install -y \
@@ -50,12 +50,8 @@ jobs:
             libxau6 \
             libxdmcp6
 
-          # 创建 libEGL 的软链接，确保系统能找到
-          sudo ln -sf /usr/lib/x86_64-linux-gnu/libEGL.so.1 /usr/lib/libEGL.so.1 || true
-          sudo ln -sf /usr/lib/x86_64-linux-gnu/libOpenGL.so.0 /usr/lib/libOpenGL.so.0 || true
-
-      # ===== 安装 Calibre（二进制包方式）=====
-      - name: Install Calibre (binary download)
+      # ===== 安装 Calibre（使用预编译二进制包）=====
+      - name: Install Calibre
         run: |
           wget -nv https://download.calibre-ebook.com/9.11.0/calibre-9.11.0-x86_64.txz
           sudo tar -xvf calibre-9.11.0-x86_64.txz -C /opt
