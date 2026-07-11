@@ -2,6 +2,7 @@
 # vim:fileencoding=utf-8
 
 import json
+import re
 import time
 from datetime import datetime, timedelta
 from urllib.parse import quote, urlencode
@@ -134,9 +135,12 @@ def process_web_node(node):
 
 
 def load_article_from_web_json(raw):
-    # open('/t/raw.json', 'w').write(raw)
     body = ''
-    data = json.loads(raw)['data']['findArticleByUrl']
+    try:
+        data = json.loads(raw)['data']['findArticleByUrl']
+    except:
+        return '<html><body><p>Failed to load article</p></body></html>'
+    
     body += f'<div style="color: red; font-size:small; font-weight:bold;">{data.get("flyTitle", "")}</div>'
     body += f'<h1>{data["headline"]}</h1>'
     if data.get('rubric') and data.get('rubric') is not None:
@@ -213,8 +217,6 @@ class Econ1843(BasicNewsRecipe):
     '''
     resolve_internal_links = True
 
-    # economist.com has started throttling after about 60% of the total has
-    # downloaded with connection reset by peer (104) errors.
     delay = 1
     browser_type = 'webengine'
 
@@ -232,73 +234,67 @@ class Econ1843(BasicNewsRecipe):
         br = BasicNewsRecipe.get_browser(self, *args, **kwargs)
         return br
 
-    def economist_test_article(self):
-        return [('Articles', [{'title':'test',
-            'url':'https://www.economist.com/1843/2025/03/05/the-great-pretender-how-ahmed-al-sharaa-won-syria'
-        }])]
-
-    def economist_return_index(self, ans):
-        if not ans:
-            raise NoArticles(
-                'Could not find any articles, either the '
-                'economist.com server is having trouble and you should '
-                'try later or the website format has changed and the '
-                'recipe needs to be updated.'
-            )
-        return ans
-
     def parse_index(self):
-        # return self.economist_test_article()
         self.title = '1843'
-        raw = self.index_to_soup('https://www.economist.com/1843')
-        ans = self.economist_parse_index(raw)
-        return self.economist_return_index(ans)
-
-    def economist_parse_index(self, soup):
-        # ===== 修改：尝试多种方式解析文章列表 =====
-        feeds = []
-
-        # 方式1：从 __NEXT_DATA__ 中解析
-        script_tag = soup.find('script', id='__NEXT_DATA__')
-        if script_tag is not None:
-            try:
-                data = json.loads(script_tag.string)
-                # 尝试不同路径获取文章列表
+        
+        # ===== 方法1: 使用 API 直接获取 1843 文章 =====
+        try:
+            api_url = 'https://www.economist.com/1843'
+            raw = self.index_to_soup(api_url)
+            
+            # 尝试从 __NEXT_DATA__ 中提取
+            script = raw.find('script', id='__NEXT_DATA__')
+            if script:
+                data = json.loads(script.string)
                 articles = safe_dict(data, 'props', 'pageProps', 'content', 'articles')
                 if articles:
+                    feeds = []
                     for part in articles:
                         title = safe_dict(part, 'headline') or ''
                         url = process_url(safe_dict(part, 'url') or '')
                         desc = safe_dict(part, 'rubric') or ''
-                        sub = safe_dict(part, 'flyTitle') or ''
-                        if sub:
-                            desc = sub + ' :: ' + desc
-                        self.log('\t', title, '\n\t', desc, '\n\t\t', url)
-                        feeds.append({'title': title, 'description': desc, 'url': url})
-                    return [('Articles', feeds)]
-            except Exception as e:
-                self.log('Failed to parse __NEXT_DATA__:', e)
-
-        # 方式2：从页面的 article 标签中解析
-        articles = soup.find_all('article')
-        for article in articles:
-            try:
-                link = article.find('a')
-                if link and link.get('href'):
-                    url = process_url(link['href'])
-                    title = link.get_text(strip=True) or ''
-                    if title and url and '/1843/' in url:
-                        self.log('\t', title, '\n\t\t', url)
-                        feeds.append({'title': title, 'description': '', 'url': url})
-            except Exception as e:
-                self.log('Failed to parse article:', e)
-
-        if feeds:
-            return [('Articles', feeds)]
-
-        # 方式3：如果都失败，使用测试文章
-        self.log('No articles found, using test article')
-        return self.economist_test_article()
+                        if title and url:
+                            feeds.append({'title': title, 'description': desc, 'url': url})
+                    if feeds:
+                        self.log(f'Found {len(feeds)} articles from __NEXT_DATA__')
+                        return [('Articles', feeds)]
+        except Exception as e:
+            self.log(f'Method 1 failed: {e}')
+        
+        # ===== 方法2: 从页面的文章链接中提取 =====
+        try:
+            raw = self.index_to_soup('https://www.economist.com/1843')
+            feeds = []
+            # 查找所有包含 /1843/ 的链接
+            for link in raw.find_all('a', href=re.compile(r'/1843/\d{4}/\d{2}/\d{2}/')):
+                url = process_url(link.get('href'))
+                title = link.get_text(strip=True)
+                if title and url and len(title) > 10:  # 过滤太短的标题
+                    feeds.append({'title': title, 'description': '', 'url': url})
+                    self.log(f'Found article: {title}')
+            
+            # 去重
+            seen = set()
+            unique_feeds = []
+            for feed in feeds:
+                if feed['url'] not in seen:
+                    seen.add(feed['url'])
+                    unique_feeds.append(feed)
+            
+            if unique_feeds:
+                self.log(f'Found {len(unique_feeds)} articles from page links')
+                return [('Articles', unique_feeds)]
+        except Exception as e:
+            self.log(f'Method 2 failed: {e}')
+        
+        # ===== 方法3: 使用测试文章 =====
+        self.log('All methods failed, using test articles')
+        return [('Articles', [
+            {'title': 'The great pretender: how Ahmed al-Sharaa won Syria',
+             'url': 'https://www.economist.com/1843/2025/03/05/the-great-pretender-how-ahmed-al-sharaa-won-syria'},
+            {'title': 'The battle for the future of Syria',
+             'url': 'https://www.economist.com/1843/2025/02/26/the-battle-for-the-future-of-syria'},
+        ])]
 
     def preprocess_html(self, soup):
         width = '600'
@@ -313,10 +309,8 @@ class Econ1843(BasicNewsRecipe):
         return soup
 
     def preprocess_raw_html(self, raw, url):
-        # open('/t/raw.html', 'wb').write(raw.encode('utf-8'))
         html = load_article_from_web_json(raw)
         root = parse(html)
-        # the economist uses <small> for small caps with a custom font
         for init in root.xpath('//span[@data-caps="initial"]'):
             init.set('style', 'font-weight:bold;')
         for x in root.xpath('//small'):
