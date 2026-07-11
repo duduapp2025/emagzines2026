@@ -5,11 +5,11 @@ on:
   workflow_dispatch:
     inputs:
       issue_date:
-        description: 'Issue Date (MMM DD, YYYY) - 例如 Dec 30, 2024，留空则抓取最新一期'
+        description: 'Issue Date (MMM DD YYYY) - 例如 Jul 13 2026，留空则抓取最新一期'
         required: false
         default: ''
   schedule:
-    - cron: '0 20 * * 5'  # 每周五 UTC 20:00 (北京时间周六凌晨4点)
+    - cron: '0 20 * * 5'
 
 jobs:
   worker:
@@ -66,15 +66,23 @@ jobs:
           if [ ! -f "$CALIBRE_CMD" ]; then
             CALIBRE_CMD="ebook-convert"
           fi
+
+          # 基础命令
           CMD="$CALIBRE_CMD barrons.recipe output/barrons.epub --output-profile=kindle"
+
           if [ -n "${{ github.event.inputs.issue_date }}" ]; then
-            echo "抓取指定日期: ${{ github.event.inputs.issue_date }}"
-            CMD="$CMD --recipe-specific-option=date:${{ github.event.inputs.issue_date }}"
+            # 清理日期：去除逗号，合并多余空格
+            CLEAN_DATE=$(echo "${{ github.event.inputs.issue_date }}" | sed 's/,//g' | sed 's/  */ /g')
+            echo "抓取指定日期（已清理格式）: $CLEAN_DATE"
+            # 关键修复：用单引号将整个 --recipe-specific-option 参数括起来
+            CMD="$CMD '--recipe-specific-option=date:$CLEAN_DATE'"
           else
             echo "抓取最新一期"
           fi
+
           echo "执行命令: $CMD"
-          eval $CMD
+          # 使用 bash -c 执行命令，确保引号内的内容被正确解析为单个参数
+          bash -c "$CMD"
 
       - name: Upload Artifact
         uses: actions/upload-artifact@v4
