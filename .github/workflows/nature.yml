@@ -22,6 +22,12 @@ jobs:
         with:
           python-version: '3.10'
 
+      # ===== 新增：安装系统依赖 =====
+      - name: Install dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libegl1 libopengl0 libgl1-mesa-glx libglib2.0-0
+
       - name: Install Calibre
         run: |
           sudo -v && wget -nv -O- https://download.calibre-ebook.com/linux-installer.sh | sudo sh /dev/stdin
