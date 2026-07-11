@@ -23,8 +23,8 @@ jobs:
         with:
           python-version: '3.10'
 
-      # ===== 修正：移除所有有问题的包，只保留必要的 =====
-      - name: Install dependencies
+      # ===== 精简依赖 =====
+      - name: Install minimal dependencies
         run: |
           sudo apt-get update
           sudo apt-get install -y \
@@ -33,46 +33,39 @@ jobs:
             libgl1 \
             libglib2.0-0 \
             libxcb-xinerama0 \
-            libxcb-icccm4 \
-            libxcb-image0 \
-            libxcb-keysyms1 \
-            libxcb-randr0 \
-            libxcb-render-util0 \
-            libxcb-shape0 \
-            libxcb-xfixes0 \
-            libxkbcommon-x11-0 \
-            libxcb-cursor0 \
-            libxcb-util1 \
             libxrender1 \
-            libxext6 \
-            libx11-6 \
-            libxcb1 \
-            libxau6 \
-            libxdmcp6
+            libxext6
 
-      # ===== 安装 Calibre（使用预编译二进制包）=====
+      # ===== 使用官方安装脚本，跳过依赖检测 =====
       - name: Install Calibre
         run: |
-          wget -nv https://download.calibre-ebook.com/9.11.0/calibre-9.11.0-x86_64.txz
-          sudo tar -xvf calibre-9.11.0-x86_64.txz -C /opt
-          sudo ln -sf /opt/calibre/calibre /usr/local/bin/calibre
-          sudo ln -sf /opt/calibre/ebook-convert /usr/local/bin/ebook-convert
-          sudo ln -sf /opt/calibre/ebook-meta /usr/local/bin/ebook-meta
+          # 清理可能存在的旧链接
+          sudo rm -f /usr/local/bin/calibre /usr/local/bin/ebook-convert /usr/local/bin/ebook-meta
+          # 使用环境变量跳过库检测
+          export SKIP_DEPS_CHECK=1
           export QT_QPA_PLATFORM=offscreen
-          /usr/local/bin/calibre --version
+          sudo -v
+          wget -nv -O- https://download.calibre-ebook.com/linux-installer.sh | sudo SKIP_DEPS_CHECK=1 sh /dev/stdin
+          # 验证安装
+          /usr/bin/calibre --version || /opt/calibre/calibre --version
 
       - name: Fetch Nature
         run: |
           mkdir -p output
           export QT_QPA_PLATFORM=offscreen
+          # 使用完整路径调用
+          CALIBRE_CMD="/opt/calibre/ebook-convert"
+          if [ ! -f "$CALIBRE_CMD" ]; then
+            CALIBRE_CMD="ebook-convert"
+          fi
           if [ -n "${{ github.event.inputs.issue_date }}" ]; then
             echo "抓取指定日期: ${{ github.event.inputs.issue_date }}"
-            /usr/local/bin/ebook-convert nature.recipe output/nature.epub \
+            $CALIBRE_CMD nature.recipe output/nature.epub \
               --output-profile=kindle \
               --recipe-specific-option=date:${{ github.event.inputs.issue_date }}
           else
             echo "抓取最新一期"
-            /usr/local/bin/ebook-convert nature.recipe output/nature.epub --output-profile=kindle
+            $CALIBRE_CMD nature.recipe output/nature.epub --output-profile=kindle
           fi
 
       - name: Upload Artifact
