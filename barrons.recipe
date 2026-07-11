@@ -108,6 +108,9 @@ class Barrons(BasicNewsRecipe):
             'Available Editions: ',
             ' | '.join(x['screenIds'][0]['name'][6:] for x in scrn),
         )
+
+        # ===== 新增：标记是否找到匹配的期刊 =====
+        found_issue = False
         for frme in scrn:
             edition_date = self.recipe_specific_options.get('date')
             if edition_date and isinstance(edition_date, str):
@@ -120,7 +123,12 @@ class Barrons(BasicNewsRecipe):
             self.cover_url = frme['image']['url']
             self.log('Downloading ', nme)
             self.timefmt = ' [' + nme[6:] + ']'
+            found_issue = True
             break
+
+        # ===== 新增：如果没有找到匹配的期刊，退出并报错 =====
+        if not found_issue:
+            self.abort_recipe_processing('No matching issue found for the specified date.')
 
         feeds_dict = defaultdict(list)
 
