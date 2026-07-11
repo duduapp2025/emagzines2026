@@ -5,7 +5,7 @@ on:
   workflow_dispatch:
     inputs:
       issue_date:
-        description: 'Issue Date (MMM DD YYYY) - 例如 Jul 13 2026，留空则抓取最新一期'
+        description: 'Issue Date (MMM DD, YYYY) - 例如 Jul 13, 2026，留空则抓取最新一期'
         required: false
         default: ''
   schedule:
@@ -71,17 +71,16 @@ jobs:
           CMD="$CALIBRE_CMD barrons.recipe output/barrons.epub --output-profile=kindle"
 
           if [ -n "${{ github.event.inputs.issue_date }}" ]; then
-            # 清理日期：去除逗号，合并多余空格
-            CLEAN_DATE=$(echo "${{ github.event.inputs.issue_date }}" | sed 's/,//g' | sed 's/  */ /g')
-            echo "抓取指定日期（已清理格式）: $CLEAN_DATE"
-            # 关键修复：用单引号将整个 --recipe-specific-option 参数括起来
+            # ===== 关键修改：保留用户输入的原始格式，只去除首尾空格 =====
+            RAW_DATE="${{ github.event.inputs.issue_date }}"
+            CLEAN_DATE=$(echo "$RAW_DATE" | sed 's/^[[:space:]]*//;s/[[:space:]]*$//')
+            echo "抓取指定日期: $CLEAN_DATE"
             CMD="$CMD '--recipe-specific-option=date:$CLEAN_DATE'"
           else
             echo "抓取最新一期"
           fi
 
           echo "执行命令: $CMD"
-          # 使用 bash -c 执行命令，确保引号内的内容被正确解析为单个参数
           bash -c "$CMD"
 
       - name: Upload Artifact
