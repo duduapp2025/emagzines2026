@@ -9,25 +9,22 @@ on:
         required: false
         default: ''
   schedule:
-    # 每周三 UTC 20:00 (北京时间周四凌晨4点) 运行
     - cron: '0 20 * * 3'
 
 jobs:
   worker:
     runs-on: ubuntu-latest
     steps:
-      # 1. 检出代码
       - name: Checkout code
         uses: actions/checkout@v3
 
-      # 2. 设置 Python 环境
       - name: Setup Python
         uses: actions/setup-python@v5
         with:
           python-version: '3.10'
 
-      # 3. 安装所有系统依赖 (解决 libEGL.so.1 缺失问题)
-      - name: Install system dependencies
+      # ===== 关键修改：安装依赖并设置环境变量 =====
+      - name: Install dependencies and setup environment
         run: |
           sudo apt-get update
           sudo apt-get install -y \
@@ -43,57 +40,48 @@ jobs:
             libxcb-render-util0 \
             libxcb-shape0 \
             libxcb-xfixes0 \
-            libxcb-xkb1 \
             libxkbcommon-x11-0 \
             libxcb-cursor0 \
             libxcb-util1 \
-            libxcb-xv0 \
-            libx11-xcb1 \
-            libxcb-glx0 \
-            libxcb-dri2-0 \
-            libxcb-dri3-0 \
-            libxcb-present0 \
-            libxcb-sync1 \
-            libxshmfence1 \
-            libglvnd0 \
-            libglapi-mesa \
-            libgl1-mesa-dri \
-            libglx-mesa0 \
             libxrender1 \
             libxext6 \
             libx11-6 \
             libxcb1 \
             libxau6 \
-            libxdmcp6 \
-            libxfixes3 \
-            libxdamage1 \
-            libxxf86vm1
+            libxdmcp6
 
-      # 4. 安装 Calibre
-      - name: Install Calibre
+          # 创建 libEGL 的软链接，确保系统能找到
+          sudo ln -sf /usr/lib/x86_64-linux-gnu/libEGL.so.1 /usr/lib/libEGL.so.1 || true
+          sudo ln -sf /usr/lib/x86_64-linux-gnu/libOpenGL.so.0 /usr/lib/libOpenGL.so.0 || true
+
+      # ===== 修改安装方式：直接使用 Calibre 的二进制包 =====
+      - name: Install Calibre (binary download)
         run: |
-          sudo -v
-          wget -nv -O- https://download.calibre-ebook.com/linux-installer.sh | sudo sh /dev/stdin
-          # 设置离屏渲染环境变量，避免图形依赖问题
+          # 下载 Calibre 二进制包
+          wget -nv https://download.calibre-ebook.com/9.11.0/calibre-9.11.0-x86_64.txz
+          sudo tar -xvf calibre-9.11.0-x86_64.txz -C /opt
+          # 创建软链接
+          sudo ln -sf /opt/calibre/calibre /usr/local/bin/calibre
+          sudo ln -sf /opt/calibre/ebook-convert /usr/local/bin/ebook-convert
+          sudo ln -sf /opt/calibre/ebook-meta /usr/local/bin/ebook-meta
+          # 验证安装
           export QT_QPA_PLATFORM=offscreen
-          calibre --version
+          /usr/local/bin/calibre --version
 
-      # 5. 抓取 Nature 杂志
       - name: Fetch Nature
         run: |
           mkdir -p output
-          # 如果用户输入了日期，则使用该日期；否则抓取最新一期
+          export QT_QPA_PLATFORM=offscreen
           if [ -n "${{ github.event.inputs.issue_date }}" ]; then
             echo "抓取指定日期: ${{ github.event.inputs.issue_date }}"
-            ebook-convert nature.recipe output/nature.epub \
+            /usr/local/bin/ebook-convert nature.recipe output/nature.epub \
               --output-profile=kindle \
               --recipe-specific-option=date:${{ github.event.inputs.issue_date }}
           else
             echo "抓取最新一期"
-            ebook-convert nature.recipe output/nature.epub --output-profile=kindle
+            /usr/local/bin/ebook-convert nature.recipe output/nature.epub --output-profile=kindle
           fi
 
-      # 6. 上传生成的电子书
       - name: Upload Artifact
         uses: actions/upload-artifact@v4
         with:
