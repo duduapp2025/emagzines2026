@@ -1,176 +1,87 @@
-#!/usr/bin/env python
-# vim:fileencoding=utf-8
+name: Bloomberg Businessweek
+run-name: "Bloomberg: ${{ github.ref_name }}"
 
-import json
-import time
-from datetime import datetime
+on:
+  workflow_dispatch:
+    inputs:
+      issue_date:
+        description: 'Issue Date (YYYY-MM-DD) - 留空则抓取最新一期'
+        required: false
+        default: ''
+  schedule:
+    - cron: '0 20 * * 1'  # 每周一 UTC 20:00 (北京时间周二凌晨4点)
 
-from calibre.ebooks.BeautifulSoup import BeautifulSoup
-from calibre.web.feeds.news import BasicNewsRecipe, classes
+jobs:
+  worker:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
 
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.10'
 
-def get_contents(x):
-    if x == '':
-        return ''
-    otype = x.get('role', '')
-    if otype == 'p':
-        return '<p>' + ''.join(map(get_contents, x.get('parts', ''))) + '</p>'
-    elif otype == 'text':
-        if 'style' in x:
-            return '<' + x['style']  + '>' + ''.join(map(get_contents, x.get('parts', ''))) + '</' + x['style']  + '>'
-        return x.get('text', '') + ''.join(map(get_contents, x.get('parts', '')))
-    elif otype == 'br':
-        return '<br>'
-    elif otype == 'anchor':
-        return '<span>' + ''.join(map(get_contents, x.get('parts', ''))) + '</span>'
-    elif otype == 'h3':
-        return '<h4>' + ''.join(map(get_contents, x.get('parts', ''))) + '</h4>'
-    elif otype == 'ul':
-        return '<ul>' + ''.join(map(get_contents, x.get('parts', ''))) + '</ul>'
-    elif otype == 'li':
-        return '<li>' + ''.join(map(get_contents, x.get('parts', ''))) + '</li>'
-    elif otype == 'webview':
-        return '<br>' + x['html'] + ''.join(map(get_contents, x.get('parts', '')))
-    elif otype == 'blockquote':
-        return '<blockquote>' + ''.join(map(get_contents, x.get('parts', ''))) + '</blockquote>'
-    elif otype in {'image', 'video'}:
-        return '<br><img src="{}"><div class="img">{}</div>\n'.format(
-                x['imageURLs']['default'], x['caption'] + '<i> ' + x['credit'] + '</i>'
-            )
-    elif otype in {'correction', 'disclaimer'}:
-        return '<p class="corr">' + ''.join(map(get_contents, x.get('parts', ''))) + '</p>'
+      - name: Install dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            libegl1 \
+            libopengl0 \
+            libgl1 \
+            libglib2.0-0 \
+            libxcb-xinerama0 \
+            libxcb-icccm4 \
+            libxcb-image0 \
+            libxcb-keysyms1 \
+            libxcb-randr0 \
+            libxcb-render-util0 \
+            libxcb-shape0 \
+            libxcb-xfixes0 \
+            libxkbcommon-x11-0 \
+            libxcb-cursor0 \
+            libxcb-util1 \
+            libxrender1 \
+            libxext6 \
+            libx11-6 \
+            libxcb1 \
+            libxau6 \
+            libxdmcp6
 
-    elif not any(x == otype for x in ['', 'ad', 'inline-newsletter', 'tabularData']):
-        return '<i>' + ''.join(map(get_contents, x.get('parts', ''))) + '</i>'
-    return ''
+      - name: Install Calibre
+        run: |
+          sudo rm -f /usr/local/bin/calibre /usr/local/bin/ebook-convert /usr/local/bin/ebook-meta
+          export SKIP_DEPS_CHECK=1
+          export QT_QPA_PLATFORM=offscreen
+          sudo -v
+          wget -nv -O- https://download.calibre-ebook.com/linux-installer.sh | sudo SKIP_DEPS_CHECK=1 sh /dev/stdin
+          /opt/calibre/calibre --version || /usr/bin/calibre --version
 
+      - name: Fetch Bloomberg Businessweek
+        run: |
+          mkdir -p output
+          export QT_QPA_PLATFORM=offscreen
+          CALIBRE_CMD="/opt/calibre/ebook-convert"
+          if [ ! -f "$CALIBRE_CMD" ]; then
+            CALIBRE_CMD="ebook-convert"
+          fi
 
-class Bloomberg(BasicNewsRecipe):
-    title = 'Bloomberg Businessweek'
-    language = 'en_US'
-    __author__ = 'unkn0wn'
-    no_stylesheets = True
-    remove_attributes = ['style', 'height', 'width']
-    encoding = 'utf-8'
-    ignore_duplicate_articles = {'url'}
-    masthead_url = 'https://assets.bwbx.io/s3/javelin/public/hub/images/BW-Logo-Black-cc9035fbb3.svg'
-    description = (
-        'Bloomberg Businessweek helps global leaders stay ahead with insights and in-depth analysis on the people,'
-        " companies, events, and trends shaping today's complex, global economy."
-    )
-    remove_empty_feeds = True
+          CMD="$CALIBRE_CMD bloomberg-business-week.recipe output/bloomberg.epub --output-profile=kindle"
 
-    recipe_specific_options = {
-        'issue': {
-            'short': 'The ID of the edition to download (YY_XX format)',
-            'long': 'For example, 24_17\nHint: Edition ID can be found at the end of its URL'
-        }
-    }
+          if [ -n "${{ github.event.inputs.issue_date }}" ]; then
+            CLEAN_DATE="${{ github.event.inputs.issue_date }}"
+            echo "抓取指定日期: $CLEAN_DATE"
+            CMD="$CMD '--recipe-specific-option=date:$CLEAN_DATE'"
+          else
+            echo "抓取最新一期"
+          fi
 
-    remove_tags = [
-        dict(name=['button', 'svg', 'meta', 'iframe']),
-        dict(name='div', attrs={'id':['bb-that', 'bb-nav']}),
-        dict(attrs={'data-image-type':'audio'}),
-        classes('twitter-logo bb-global-footer __sticky__audio__bar__portal__ css--social-wrapper-outer bplayer-container')
-    ]
+          echo "执行命令: $CMD"
+          bash -c "$CMD"
 
-    extra_css = '''
-        .auth { font-size:small; font-weight:bold; }
-        .subhead, .cap span { font-style:italic; color:#202020; }
-        em, blockquote { color:#202020; }
-        .cat { font-size:small; color:gray; }
-        .img, .news-figure-caption-text { font-size:small; text-align:center; }
-        .corr { font-size:small; font-style:italic; color:#404040; }
-        .chart { font-size:small; }
-        .news-figure-credit {font-size:small; text-align:center; color:#202020;}
-    '''
-
-    def parse_index(self):
-        inx = 'https://cdn-mobapi.bloomberg.com'
-        sec = self.index_to_soup(inx + '/wssmobile/v1/bw/news/list?limit=1', raw=True)
-        id = json.loads(sec)['magazines'][0]['id']
-        past_edition = self.recipe_specific_options.get('issue')
-        if past_edition and isinstance(past_edition, str):
-            id = past_edition
-        edit = self.index_to_soup(inx + '/wssmobile/v1/bw/news/week/' + id, raw=True)
-        d = json.loads(edit)
-        self.timefmt = ' [' + d['date'] + ']'
-        self.cover_url = d['image']['thumbUrl']
-
-        feeds = []
-
-        for i in d['modules']:
-            section = i['title']
-            self.log(section)
-
-            articles = []
-
-            for x in i['articles']:
-                title = x['title']
-                url = inx + '/wssmobile/v1/stories/' + x['id']
-                self.log('\t', title)
-                articles.append({'title': title, 'url': url})
-            feeds.append((section, articles))
-        return feeds
-
-    def preprocess_raw_html(self, raw, url):
-        data = json.loads(raw)
-
-        title = '<h1 title="{}">'.format(data['longURL']) + data['title'] + '</h1>'
-
-        cat = subhead = lede = auth = caption = ''
-
-        if 'primaryCategory' in data and data['primaryCategory'] is not None:
-            cat = '<div class="cat">' + data['primaryCategory'] + '</div>'
-
-        if 'abstract' in data and data['abstract'] and data['abstract'] is not None:
-            subhead = '<div class="subhead"><ul><li>' + '</li><li>'.join(list(data['abstract'])) + '</li></ul></div>'
-        elif data.get('summary'):
-            subhead = '<div class="subhead"><p>' + data['summary'] + '</p></div>'
-
-        if 'byline' in data and data['byline'] is not None:
-            dt = datetime.fromtimestamp(data['updatedAt'] + time.timezone)
-            auth = '<p class="auth">' + 'By ' + data['byline'] + ' | Updated on ' + dt.strftime('%b %d, %Y at %I:%M %p') + '</p>'
-
-        body = ''
-        if data.get('type', '') == 'interactive':
-            body += '<p><em>' + 'This is an interactive article, which is supposed to be read in a browser.' + '</p></em>'
-        # body_data = data['components']
-        # for x in body_data:
-        #     body += get_contents(x)
-
-        b_data = self.index_to_soup('https://cdn-mobapi.bloomberg.com/wssmobile/v1/bw/news/stories/' + url.split('/')[-1], raw=True)
-        body += json.loads(b_data)['html']
-
-        if 'ledeImage' in data and data['ledeImage'] is not None:
-            x = data['ledeImage']
-            if x['imageURLs']['default'].rsplit('/', 1)[0] not in body:
-                lede = '<br><img src="{}"><div class="img">{}</div>\n'.format(
-                    x['imageURLs']['default'], x['caption'] + '<i> ' + x['credit'] + '</i>'
-                )
-
-        html = '<html><body>' + cat + title + subhead + auth + lede + caption + '<div>' + body + '</div></body></html>'
-        return BeautifulSoup(html).prettify()
-
-    def preprocess_html(self, soup):
-        for h3 in soup.findAll(['h2', 'h3']):
-            h3.name = 'h4'
-        for icon in soup.findAll('img', attrs={'class':'video-player__play-icon'}):
-            icon.decompose()
-        for div in soup.findAll('div', attrs={'class':'chart'}):
-            nos = div.find('noscript')
-            if nos:
-                nos.name = 'span'
-        for img in soup.findAll('img', attrs={'data-native-src':True}):
-            if img['data-native-src'].__contains__('videos') is False:
-                img['src'] = img['data-native-src']
-            else:
-                img['src'] = ''
-        for img in soup.findAll('img', attrs={'src':lambda x: x and x.endswith(('-1x-1.jpg', '-1x-1.png'))}):
-            img['src'] = img['src'].replace('-1x-1', '750x-1')
-        return soup
-
-    def populate_article_metadata(self, article, soup, first):
-        article.url = soup.find('h1')['title']
-        article.summary = self.tag_to_string(soup.find('div', attrs={'class':'subhead'}))
-        article.text_summary = article.summary
+      - name: Upload Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: bloomberg-$(date +%Y%m%d)
+          path: output/
