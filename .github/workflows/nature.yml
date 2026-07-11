@@ -23,14 +23,14 @@ jobs:
         with:
           python-version: '3.10'
 
-      # ===== 关键修改：安装依赖并设置环境变量 =====
+      # ===== 修正依赖包名称 =====
       - name: Install dependencies and setup environment
         run: |
           sudo apt-get update
           sudo apt-get install -y \
             libegl1 \
             libopengl0 \
-            libgl1-mesa-glx \
+            libgl1 \
             libglib2.0-0 \
             libxcb-xinerama0 \
             libxcb-icccm4 \
@@ -54,17 +54,14 @@ jobs:
           sudo ln -sf /usr/lib/x86_64-linux-gnu/libEGL.so.1 /usr/lib/libEGL.so.1 || true
           sudo ln -sf /usr/lib/x86_64-linux-gnu/libOpenGL.so.0 /usr/lib/libOpenGL.so.0 || true
 
-      # ===== 修改安装方式：直接使用 Calibre 的二进制包 =====
+      # ===== 安装 Calibre（二进制包方式）=====
       - name: Install Calibre (binary download)
         run: |
-          # 下载 Calibre 二进制包
           wget -nv https://download.calibre-ebook.com/9.11.0/calibre-9.11.0-x86_64.txz
           sudo tar -xvf calibre-9.11.0-x86_64.txz -C /opt
-          # 创建软链接
           sudo ln -sf /opt/calibre/calibre /usr/local/bin/calibre
           sudo ln -sf /opt/calibre/ebook-convert /usr/local/bin/ebook-convert
           sudo ln -sf /opt/calibre/ebook-meta /usr/local/bin/ebook-meta
-          # 验证安装
           export QT_QPA_PLATFORM=offscreen
           /usr/local/bin/calibre --version
 
