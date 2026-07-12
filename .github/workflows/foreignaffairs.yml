@@ -1,5 +1,5 @@
-name: Unknown Magazine
-run-name: "Unknown Magazine: ${{ github.ref_name }}"
+name: Foreign Affairs
+run-name: "Foreign Affairs: ${{ github.ref_name }}"
 
 on:
   workflow_dispatch:
@@ -59,7 +59,7 @@ jobs:
           wget -nv -O- https://download.calibre-ebook.com/linux-installer.sh | sudo SKIP_DEPS_CHECK=1 sh /dev/stdin
           /opt/calibre/calibre --version || /usr/bin/calibre --version
 
-      - name: Fetch Unknown Magazine
+      - name: Fetch Foreign Affairs
         run: |
           mkdir -p output
           export QT_QPA_PLATFORM=offscreen
@@ -70,8 +70,8 @@ jobs:
 
           CMD="$CALIBRE_CMD foreignaffairs.recipe output/foreignaffairs.epub --output-profile=kindle"
 
-          if [ -n "${{{{ github.event.inputs.issue }}}}" ]; then
-            ISSUE_ID="${{{{ github.event.inputs.issue }}}}"
+          if [ -n "${{ github.event.inputs.issue }}" ]; then
+            ISSUE_ID="${{ github.event.inputs.issue }}"
             echo "抓取指定 Issue ID: $ISSUE_ID"
             CMD="$CMD '--recipe-specific-option=issue:$ISSUE_ID'"
           else
@@ -86,7 +86,6 @@ jobs:
         with:
           name: foreignaffairs-$(date +%Y%m%d)
           path: output/
-
         env:
           CALIBRE_USERNAME: ${{ secrets.MAGAZINE_EMAIL }}
           CALIBRE_PASSWORD: ${{ secrets.MAGAZINE_PASSWORD }}
