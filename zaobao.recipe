@@ -1,0 +1,82 @@
+#!/usr/bin/env python
+
+'''
+zaobao.com.sg
+'''
+
+from calibre.web.feeds.news import BasicNewsRecipe, classes
+
+
+class ZAOBAO(BasicNewsRecipe):
+    title = '联合早报'
+    __author__ = 'unkn0wn'
+    description = '联合早报 是全球华文用户信任的媒体，每天即时为你提供国际最新新闻和热门新闻。从财经、体育、生活娱乐资讯到评论分析，尽在zaobao.com.sg。'
+    no_stylesheets = True
+    language = 'zh'
+    encoding = 'utf-8'
+    masthead_url = (
+        'https://upload.wikimedia.org/wikipedia/en/2/29/Lianhe_Zaobao_new_logo.svg'
+    )
+    remove_javascript = True
+    ignore_duplicate_articles = {'url'}
+    remove_attributes = ['width', 'height', 'style']
+    resolve_internal_links = True
+    remove_empty_feeds = True
+
+    extra_css = '''
+        .calibre-nuked-tag-figcaption {font-size:small; text-align:center; }
+        img {display:block; margin:0 auto;}
+    '''
+
+    def get_cover_url(self):
+        soup = self.index_to_soup(
+            'https://frontpages.freedomforum.org/newspapers/sing_lz-Lianhe_Zaobao'
+        )
+        return soup.find(
+            'img',
+            attrs={
+                'alt': 'Front Page Image',
+                'src': lambda x: x and x.endswith('front-page-large.jpg'),
+            },
+        )['src'].replace('-large', '-medium')
+
+    keep_only_tags = [
+        dict(name='article', attrs={'class': 'max-w-full'}),
+    ]
+
+    remove_tags_after = [classes('articleBody')]
+
+    remove_tags = [classes('bff-google-ad bff-recommend-article')]
+
+    def parse_index(self):
+        index = 'https://www.zaobao.com.sg'
+        sections = ['realtime', 'news', 'forum', 'wencui', 'lifestyle', 'entertainment']
+
+        soup = self.index_to_soup(index)
+
+        feeds = []
+
+        for sec in sections:
+            sectn = sec.capitalize()
+            self.log(sectn)
+
+            articles = []
+
+            for a in soup.findAll(
+                'a',
+                attrs={
+                    'class': 'article-type-link',
+                    'href': lambda x: x and x.startswith('/' + sec),
+                },
+            ):
+                if a.find('img'):
+                    continue
+                title = self.tag_to_string(a)
+                url = index + a['href']
+                if url == index + '/' + sec:
+                    continue
+                self.log('\t', title, '\n\t\t', url)
+                articles.append({'title': title, 'url': url})
+            if articles:
+                feeds.append((sectn, articles))
+        return feeds
