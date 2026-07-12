@@ -1,5 +1,5 @@
-name: Unknown Magazine
-run-name: "Unknown Magazine: ${{ github.ref_name }}"
+name: NY Times Book Review
+run-name: "NY Times Book Review: ${{ github.ref_name }}"
 
 on:
   workflow_dispatch:
@@ -59,7 +59,7 @@ jobs:
           wget -nv -O- https://download.calibre-ebook.com/linux-installer.sh | sudo SKIP_DEPS_CHECK=1 sh /dev/stdin
           /opt/calibre/calibre --version || /usr/bin/calibre --version
 
-      - name: Fetch Unknown Magazine
+      - name: Fetch NY Times Book Review
         run: |
           mkdir -p output
           export QT_QPA_PLATFORM=offscreen
