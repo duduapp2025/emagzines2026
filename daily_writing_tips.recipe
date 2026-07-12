@@ -5,7 +5,7 @@ class DailyWritingTips(BasicNewsRecipe):
     title = u'Daily Writing Tips'
     language = 'en_GB'
     __author__ = 'NotTaken'
-    oldest_article = 7  # 默认7天
+    oldest_article = 30  # 默认30天
     max_articles_per_feed = 40
     use_embedded_content = True
     no_stylesheets = True
