@@ -8,11 +8,11 @@ __copyright__ = '2015, Kovid Goyal <kovid at kovidgoyal.net>'
 from calibre.web.feeds.news import BasicNewsRecipe
 
 
-class EntrepeneurMagRecipe(BasicNewsRecipe):
+class EntrepreneurMagRecipe(BasicNewsRecipe):
     __author__ = 'Kovid Goyal'
     language = 'en'
 
-    title = u'Entrepeneur Magazine'
+    title = u'Entrepreneur Magazine'
     publisher = u'Entrepreneur Media, Inc'
     category = u'Business'
     description = u'Online magazine on business, small business, management and economy'
