@@ -70,8 +70,8 @@ jobs:
 
           CMD="$CALIBRE_CMD nikkeiasia.recipe output/nikkeiasia.epub --output-profile=kindle"
 
-          if [ -n "${{{{ github.event.inputs.issue_date }}}}" ]; then
-            CLEAN_DATE="${{{{ github.event.inputs.issue_date }}}}"
+          if [ -n "${{ github.event.inputs.issue_date }}" ]; then
+            CLEAN_DATE="${{ github.event.inputs.issue_date }}"
             echo "抓取指定日期: $CLEAN_DATE"
             CMD="$CMD '--recipe-specific-option=date:$CLEAN_DATE'"
           else
