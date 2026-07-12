@@ -1,16 +1,16 @@
-name: Scientific American
-run-name: "Scientific American: ${{ github.ref_name }}"
+name: South China Morning Post
+run-name: "South China Morning Post: ${{ github.ref_name }}"
 
 on:
   workflow_dispatch:
     inputs:
-      issue_url:
-        description: 'Issue URL - 留空则抓取最新一期'
+      days:
+        description: '抓取过去N天的文章（默认1.15天）'
         required: false
-        default: ''
+        default: '1.15'
 
   schedule:
-    - cron: '0 6 1 * *'
+    - cron: '0 6 * * 1'
 
 jobs:
   worker:
@@ -59,7 +59,7 @@ jobs:
           wget -nv -O- https://download.calibre-ebook.com/linux-installer.sh | sudo SKIP_DEPS_CHECK=1 sh /dev/stdin
           /opt/calibre/calibre --version || /usr/bin/calibre --version
 
-      - name: Fetch Scientific American
+      - name: Fetch South China Morning Post
         run: |
           mkdir -p output
           export QT_QPA_PLATFORM=offscreen
@@ -68,14 +68,14 @@ jobs:
             CALIBRE_CMD="ebook-convert"
           fi
 
-          CMD="$CALIBRE_CMD scientific_american.recipe output/scientific_american.epub --output-profile=kindle"
+          CMD="$CALIBRE_CMD scmp.recipe output/scmp.epub --output-profile=kindle"
 
-          if [ -n "${{{{ github.event.inputs.issue_url }}}}" ]; then
-            ISSUE_URL="${{{{ github.event.inputs.issue_url }}}}"
-            echo "抓取指定 Issue URL: $ISSUE_URL"
-            CMD="$CMD '--recipe-specific-option=issue_url:$ISSUE_URL'"
+          if [ -n "${{{{ github.event.inputs.days }}}}" ]; then
+            DAYS="${{{{ github.event.inputs.days }}}}"
+            echo "抓取过去 $DAYS 天的文章"
+            CMD="$CMD '--recipe-specific-option=days:$DAYS'"
           else
-            echo "抓取最新一期"
+            echo "抓取默认天数的文章"
           fi
 
           echo "执行命令: $CMD"
@@ -84,9 +84,5 @@ jobs:
       - name: Upload Artifact
         uses: actions/upload-artifact@v4
         with:
-          name: scientific_american-$(date +%Y%m%d)
+          name: scmp-$(date +%Y%m%d)
           path: output/
-
-        env:
-          CALIBRE_USERNAME: ${{ secrets.MAGAZINE_EMAIL }}
-          CALIBRE_PASSWORD: ${{ secrets.MAGAZINE_PASSWORD }}

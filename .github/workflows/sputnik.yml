@@ -1,16 +1,16 @@
-name: Scientific American
-run-name: "Scientific American: ${{ github.ref_name }}"
+name: Sputnik News
+run-name: "Sputnik News: ${{ github.ref_name }}"
 
 on:
   workflow_dispatch:
     inputs:
-      issue_url:
-        description: 'Issue URL - 留空则抓取最新一期'
+      placeholder:
+        description: '留空即可'
         required: false
         default: ''
 
   schedule:
-    - cron: '0 6 1 * *'
+    - cron: '0 6 * * 1'
 
 jobs:
   worker:
@@ -59,7 +59,7 @@ jobs:
           wget -nv -O- https://download.calibre-ebook.com/linux-installer.sh | sudo SKIP_DEPS_CHECK=1 sh /dev/stdin
           /opt/calibre/calibre --version || /usr/bin/calibre --version
 
-      - name: Fetch Scientific American
+      - name: Fetch Sputnik News
         run: |
           mkdir -p output
           export QT_QPA_PLATFORM=offscreen
@@ -68,15 +68,9 @@ jobs:
             CALIBRE_CMD="ebook-convert"
           fi
 
-          CMD="$CALIBRE_CMD scientific_american.recipe output/scientific_american.epub --output-profile=kindle"
+          CMD="$CALIBRE_CMD sputnik.recipe output/sputnik.epub --output-profile=kindle"
 
-          if [ -n "${{{{ github.event.inputs.issue_url }}}}" ]; then
-            ISSUE_URL="${{{{ github.event.inputs.issue_url }}}}"
-            echo "抓取指定 Issue URL: $ISSUE_URL"
-            CMD="$CMD '--recipe-specific-option=issue_url:$ISSUE_URL'"
-          else
-            echo "抓取最新一期"
-          fi
+          echo "抓取最新内容"
 
           echo "执行命令: $CMD"
           bash -c "$CMD"
@@ -84,9 +78,5 @@ jobs:
       - name: Upload Artifact
         uses: actions/upload-artifact@v4
         with:
-          name: scientific_american-$(date +%Y%m%d)
+          name: sputnik-$(date +%Y%m%d)
           path: output/
-
-        env:
-          CALIBRE_USERNAME: ${{ secrets.MAGAZINE_EMAIL }}
-          CALIBRE_PASSWORD: ${{ secrets.MAGAZINE_PASSWORD }}

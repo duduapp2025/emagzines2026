@@ -1,5 +1,5 @@
-name: Scientific American
-run-name: "Scientific American: ${{ github.ref_name }}"
+name: MIT Technology Review Magazine
+run-name: "MIT Technology Review Magazine: ${{ github.ref_name }}"
 
 on:
   workflow_dispatch:
@@ -10,7 +10,7 @@ on:
         default: ''
 
   schedule:
-    - cron: '0 6 1 * *'
+    - cron: '0 6 * * *'
 
 jobs:
   worker:
@@ -59,7 +59,7 @@ jobs:
           wget -nv -O- https://download.calibre-ebook.com/linux-installer.sh | sudo SKIP_DEPS_CHECK=1 sh /dev/stdin
           /opt/calibre/calibre --version || /usr/bin/calibre --version
 
-      - name: Fetch Scientific American
+      - name: Fetch MIT Technology Review Magazine
         run: |
           mkdir -p output
           export QT_QPA_PLATFORM=offscreen
@@ -68,7 +68,7 @@ jobs:
             CALIBRE_CMD="ebook-convert"
           fi
 
-          CMD="$CALIBRE_CMD scientific_american.recipe output/scientific_american.epub --output-profile=kindle"
+          CMD="$CALIBRE_CMD mit_technology_review.recipe output/mit_technology_review.epub --output-profile=kindle"
 
           if [ -n "${{{{ github.event.inputs.issue_url }}}}" ]; then
             ISSUE_URL="${{{{ github.event.inputs.issue_url }}}}"
@@ -84,9 +84,5 @@ jobs:
       - name: Upload Artifact
         uses: actions/upload-artifact@v4
         with:
-          name: scientific_american-$(date +%Y%m%d)
+          name: mit_technology_review-$(date +%Y%m%d)
           path: output/
-
-        env:
-          CALIBRE_USERNAME: ${{ secrets.MAGAZINE_EMAIL }}
-          CALIBRE_PASSWORD: ${{ secrets.MAGAZINE_PASSWORD }}
