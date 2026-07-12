@@ -70,8 +70,8 @@ jobs:
 
           CMD="$CALIBRE_CMD science_journal.recipe output/science_journal.epub --output-profile=kindle"
 
-          if [ -n "${{{{ github.event.inputs.issue }}}}" ]; then
-            ISSUE_ID="${{{{ github.event.inputs.issue }}}}"
+          if [ -n "${{ github.event.inputs.issue }}" ]; then
+            ISSUE_ID="${{ github.event.inputs.issue }}"
             echo "抓取指定 Issue ID: $ISSUE_ID"
             CMD="$CMD '--recipe-specific-option=issue:$ISSUE_ID'"
           else
