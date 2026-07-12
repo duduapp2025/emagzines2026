@@ -70,8 +70,8 @@ jobs:
 
           CMD="$CALIBRE_CMD wsj_news.recipe output/wsj_news.epub --output-profile=kindle"
 
-          if [ -n "${{{{ github.event.inputs.days }}}}" ]; then
-            DAYS="${{{{ github.event.inputs.days }}}}"
+          if [ -n "${{ github.event.inputs.days }}" ]; then
+            DAYS="${{ github.event.inputs.days }}"
             echo "抓取过去 $DAYS 天的文章"
             CMD="$CMD '--recipe-specific-option=days:$DAYS'"
           else
