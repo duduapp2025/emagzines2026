@@ -8,7 +8,7 @@ on:
         description: 'Issue Date (YYYY-MM-DD)'
         required: false
   schedule:
-    - cron: '0 22 * * *'
+    - cron: '0 22 * * 4'
 
 jobs:
   worker:
