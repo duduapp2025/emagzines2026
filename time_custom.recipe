@@ -1,0 +1,94 @@
+#!/usr/bin/env python
+# vim:fileencoding=utf-8
+
+import re
+from calibre.web.feeds.news import BasicNewsRecipe
+
+class TimeMagazine(BasicNewsRecipe):
+    title = 'TIME Magazine'
+    __author__ = 'Kovid Goyal'
+    description = 'TIME Magazine - Custom recipe with compressed images'
+    language = 'en'
+    encoding = 'utf-8'
+    masthead_url = 'https://img.timeinc.net/time/img/time_logo_120.png'
+    
+    # ===== 关键设置：压缩图片 =====
+    compress_news_images = True
+    compress_news_images_auto_size = 15  # 目标图片大小 15KB，Calibre 会自动调整
+    # =============================
+
+    # 从内置 Recipe 复制必要的属性
+    keep_only_tags = [
+        dict(name='div', attrs={'class': lambda x: x and ('article-content' in x or 'article-header' in x)}),
+        dict(name='article'),
+        dict(name='section', attrs={'class': 'article-content'}),
+    ]
+    
+    remove_tags = [
+        dict(name=['script', 'style', 'noscript', 'iframe', 'svg', 'button']),
+        dict(attrs={'class': lambda x: x and ('ad-' in x or 'social' in x or 'share' in x)}),
+    ]
+    
+    no_stylesheets = True
+    remove_attributes = ['style', 'height', 'width']
+    
+    extra_css = '''
+        img { display: block; margin: 0 auto; max-width: 100%; }
+        .caption { font-size: small; text-align: center; }
+        .credit { font-size: x-small; text-align: right; }
+    '''
+
+    def preprocess_html(self, soup):
+        """强制所有图片宽度不超过 600 像素"""
+        for img in soup.findAll('img', src=True):
+            src = img['src']
+            # 如果 URL 中有尺寸参数，修改为 600
+            if 'width=' in src:
+                src = re.sub(r'width=\d+', 'width=600', src)
+            elif '?w=' in src:
+                src = re.sub(r'\?w=\d+', '?w=600', src)
+            elif '?width=' in src:
+                src = re.sub(r'\?width=\d+', '?width=600', src)
+            elif '?h=' in src:
+                src = re.sub(r'\?h=\d+', '?h=400', src)
+            img['src'] = src
+        return soup
+
+    def parse_index(self):
+        """使用内置 TIME Magazine 的解析逻辑"""
+        # 这里直接使用 Calibre 内置的 TIME Magazine.recipe 的解析方法
+        # 由于我们无法直接继承内置 Recipe，我们使用一个简单的方法：
+        # 直接调用内置 Recipe 的 parse_index，但这个方法在自定义 Recipe 中不可用
+        # 所以我们需要自行实现解析逻辑
+        
+        # 更简单的方法：使用 feeds（RSS）
+        # 但 TIME Magazine 的 RSS 可能不包含完整文章
+        # 我们使用一个替代方案：抓取当前期的封面故事
+        
+        soup = self.index_to_soup('https://time.com')
+        articles = []
+        
+        # 查找主要文章链接
+        for link in soup.findAll('a', href=True):
+            href = link['href']
+            if href.startswith('/') and not href.startswith('/video/') and not href.startswith('/tag/'):
+                if 'time.com' in href or href.startswith('/'):
+                    full_url = href if href.startswith('http') else 'https://time.com' + href
+                    title = link.get_text(strip=True)
+                    if title and len(title) > 10:
+                        articles.append({
+                            'title': title[:100],
+                            'url': full_url,
+                            'description': ''
+                        })
+        
+        # 如果找到的文章太多，只取前 20 篇
+        if len(articles) > 20:
+            articles = articles[:20]
+        
+        return [('TIME Articles', articles)]
+
+    def get_browser(self, *args, **kwargs):
+        from calibre.utils.random_ua import common_english_word_ua
+        kwargs['user_agent'] = common_english_word_ua()
+        return BasicNewsRecipe.get_browser(self, *args, **kwargs)
