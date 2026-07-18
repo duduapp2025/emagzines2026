@@ -20,14 +20,13 @@ MAGZINES = {
         "folder": "the_economist",
         "date_regex": r"images/\K(\d{8})",
     },
-    # ===== 修改：tm 使用自定义 Recipe 以压缩图片 =====
     "tm": {
         "id": "tm",
         "name": "TIME Magazine",
-        "recipe": "time_custom",  # 改为自定义 Recipe
+        "recipe": "TIME Magazine",
         "folder": "time_magzine",
         "date_regex": r"TIM\K(\d{6})",
-    },
+    }
 }
 
 RECIPE_OPTIONS = {
@@ -137,6 +136,7 @@ def main():
     print(f"--- Fetching {config['name']} ---")
     raw_epub = "temp_output.epub"
     
+    # ===== 关键修复：使用 recipe 变量 =====
     convert_args = ["ebook-convert", f"{recipe}.recipe", raw_epub]
     
     if issue_date:
