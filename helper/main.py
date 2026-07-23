@@ -16,7 +16,7 @@ MAGZINES = {
     "te": {
         "id": "te",
         "name": "The Economist",
-        "recipe": "The Economist",
+        "recipe": "economist_custom",
         "folder": "the_economist",
         "date_regex": r"images/\K(\d{8})", # 从日志提取
     },
